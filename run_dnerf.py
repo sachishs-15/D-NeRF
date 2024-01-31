@@ -3,6 +3,7 @@ import imageio
 import time
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm, trange
+import wandb
 
 
 from run_dnerf_helpers import *
@@ -871,6 +872,10 @@ def train():
 
             if args.do_half_precision:
                 save_dict['amp'] = amp.state_dict()
+
+            # log the checkpoints
+            
+            wandb.log(save_dict)
             torch.save(save_dict, path)
             print('Saved checkpoints at', path)
 
@@ -887,6 +892,9 @@ def train():
                 writer.add_scalar('psnr0', psnr0.item(), i)
             if args.add_tv_loss:
                 writer.add_scalar('tv', tv_loss.item(), i)
+
+            # log data to wandb
+            wandb.log({"loss": img_loss.item(), "psnr": psnr.item(), "tv": tv_loss.item()})
 
         del loss, img_loss, psnr, target_s
         if 'rgb0' in extras:
@@ -912,12 +920,18 @@ def train():
             writer.add_image('disp', disp.cpu().numpy(), i, dataformats='HW')
             writer.add_image('acc', acc.cpu().numpy(), i, dataformats='HW')
 
+            #log images
+            wandb.log({"gt": [wandb.Image(to8b(target.cpu().numpy()))], "rgb": [wandb.Image(to8b(rgb.cpu().numpy()))], "disp": [wandb.Image(disp.cpu().numpy())], "acc": [wandb.Image(acc.cpu().numpy())]})
+
             if 'rgb0' in extras:
                 writer.add_image('rgb_rough', to8b(extras['rgb0'].cpu().numpy()), i, dataformats='HWC')
+                wandb.log({"rgb_rough": [wandb.Image(to8b(extras['rgb0'].cpu().numpy()))]})
             if 'disp0' in extras:
                 writer.add_image('disp_rough', extras['disp0'].cpu().numpy(), i, dataformats='HW')
+                wandb.log({"disp_rough": [wandb.Image(extras['disp0'].cpu().numpy())]})
             if 'z_std' in extras:
                 writer.add_image('acc_rough', extras['z_std'].cpu().numpy(), i, dataformats='HW')
+                wandb.log({"acc_rough": [wandb.Image(extras['z_std'].cpu().numpy())]})
 
             print("finish summary")
             writer.flush()
@@ -932,6 +946,9 @@ def train():
             moviebase = os.path.join(basedir, expname, '{}_spiral_{:06d}_'.format(expname, i))
             imageio.mimwrite(moviebase + 'rgb.mp4', to8b(rgbs), fps=30, quality=8)
             imageio.mimwrite(moviebase + 'disp.mp4', to8b(disps / np.max(disps)), fps=30, quality=8)
+
+            wandb.log({"rgb_video": [wandb.Video(moviebase + 'rgb.mp4', fps=30, format="mp4")], "disp_video": [wandb.Video(moviebase + 'disp.mp4', fps=30, format="mp4")]})
+            
 
             # if args.use_viewdirs:
             #     render_kwargs_test['c2w_staticcam'] = render_poses[0][:3,:4]
