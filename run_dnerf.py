@@ -191,10 +191,12 @@ def render_path(render_poses, render_times, hwf, chunk, render_kwargs, gt_imgs=N
             rgb8_estim = to8b(rgbs[-1])
             filename = os.path.join(save_dir_estim, '{:03d}.png'.format(i+i_offset))
             imageio.imwrite(filename, rgb8_estim)
+            wandb.log({ f"estim_{i+i_offset:03d}.png": wandb.Image(rgb8_estim) })
             if save_also_gt:
                 rgb8_gt = to8b(gt_imgs[i])
                 filename = os.path.join(save_dir_gt, '{:03d}.png'.format(i+i_offset))
                 imageio.imwrite(filename, rgb8_gt)
+                wandb.log({ f"gt_{i+i_offset:03d}.png": wandb.Image(rgb8_gt) })
 
     rgbs = np.stack(rgbs, 0)
     disps = np.stack(disps, 0)
@@ -696,6 +698,8 @@ def train():
             print('Done rendering', testsavedir)
             imageio.mimwrite(os.path.join(testsavedir, 'video.mp4'), to8b(rgbs), fps=30, quality=8)
 
+            wandb.log({"video": wandb.Video(os.path.join(testsavedir, 'video.mp4'), fps=30, format="mp4")})
+
             return
 
     # Prepare raybatch tensor if batching random rays
@@ -890,6 +894,8 @@ def train():
             if 'rgb0' in extras:
                 writer.add_scalar('loss0', img_loss0.item(), i)
                 writer.add_scalar('psnr0', psnr0.item(), i)
+
+                wandb.log({"loss0": img_loss0.item(), "psnr0": psnr0.item()})
             if args.add_tv_loss:
                 writer.add_scalar('tv', tv_loss.item(), i)
 
@@ -948,7 +954,7 @@ def train():
             imageio.mimwrite(moviebase + 'disp.mp4', to8b(disps / np.max(disps)), fps=30, quality=8)
 
             wandb.log({"rgb_video": [wandb.Video(moviebase + 'rgb.mp4', fps=30, format="mp4")], "disp_video": [wandb.Video(moviebase + 'disp.mp4', fps=30, format="mp4")]})
-            
+
 
             # if args.use_viewdirs:
             #     render_kwargs_test['c2w_staticcam'] = render_poses[0][:3,:4]
